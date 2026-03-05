@@ -4,13 +4,12 @@ services:
     # Build da imagem usando o Dockerfile
     build:
       context: .              # Contexto é a pasta raiz do projeto
-      target: production      # Usa o estágio "production" do Dockerfile (imagem otimizada)
-    # Mapeia a porta 80 do host (HTTP padrão) para a 3000 do container
-    ports:
-      - "${PORT:-80}:3000"
+      target: production      # Usa o estágio "production" do Dockerfile (com PM2)
+    # NÃO expõe porta diretamente — o Caddy faz o proxy
+    # A app fica acessível só pela rede interna Docker na porta 3000
     environment:
       NODE_ENV: production    # Define o ambiente como produção
-    # Reinicia sempre, mesmo após crash
+    # Reinicia sempre, mesmo após crash (camada Docker, PM2 cuida dentro do container)
     restart: always
     # Limites de recursos mais altos para produção
     deploy:
@@ -18,6 +17,31 @@ services:
         limits:
           memory: 1G          # Máximo de 1GB de RAM
           cpus: "1.0"         # Máximo de 1 CPU inteira
+
+  # Caddy — servidor web com HTTPS automático e proxy reverso
+  caddy:
+    # Usa a imagem oficial do Caddy
+    image: caddy:2-alpine
+    # Expõe as portas HTTP (80) e HTTPS (443) no host
+    ports:
+      - "80:80"               # HTTP — redireciona automaticamente para HTTPS
+      - "443:443"             # HTTPS — com certificado Let's Encrypt automático
+    # Monta o Caddyfile e os volumes de dados/certificados
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile   # Arquivo de configuração do Caddy
+      - caddy-data:/data                    # Certificados SSL gerados pelo Caddy
+      - caddy-config:/config                # Configurações internas do Caddy
+    # Variável com o domínio (usada no Caddyfile como {$DOMAIN})
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    # Só inicia depois que a app estiver rodando
+    depends_on:
+      - app
+    # Reinicia sempre
+    restart: always
+    # Conecta à mesma rede da app (para acessar app:3000)
+    networks:
+      - app-network
 
   db:
     restart: always
@@ -30,3 +54,8 @@ services:
         limits:
           memory: 1G
           cpus: "1.0"
+
+# Volumes para persistir dados do Caddy (certificados SSL)
+volumes:
+  caddy-data:
+  caddy-config:

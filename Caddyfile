@@ -1,0 +1,30 @@
+# Domínio da aplicação — o Caddy gera HTTPS automático via Let's Encrypt
+# Substitua pelo seu domínio real (ex: meuprojeto.com.br)
+{$DOMAIN:localhost} {
+	# Proxy reverso: encaminha todas as requisições para o container "app" na porta 3000
+	reverse_proxy app:3000
+
+	# Comprime as respostas com gzip/zstd para economizar banda
+	encode gzip zstd
+
+	# Cabeçalhos de segurança enviados em todas as respostas
+	header {
+		# Impede que o navegador adivinhe o Content-Type (evita ataques de MIME sniffing)
+		X-Content-Type-Options nosniff
+
+		# Impede que o site seja carregado dentro de um iframe (evita clickjacking)
+		X-Frame-Options DENY
+
+		# Ativa proteção contra XSS no navegador
+		X-XSS-Protection "1; mode=block"
+
+		# Remove o header que expõe qual servidor está rodando
+		-Server
+	}
+
+	# Registra os acessos em formato JSON para facilitar análise de logs
+	log {
+		output stdout
+		format json
+	}
+}

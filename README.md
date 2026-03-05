@@ -40,11 +40,45 @@ docker compose -f docker-compose.yaml -f docker-compose.staging.yaml --env-file 
 
 ### Produção
 
-Imagem otimizada, porta 80, limites de 1GB RAM / 1 CPU.
+Imagem otimizada com PM2 (auto-restart, modo cluster) + Caddy (HTTPS automático, proxy reverso).
+
+**Antes de subir**, configure o `.env.prod`:
+
+```env
+DB_USER=app_prod
+DB_PASSWORD=senha_forte_aqui
+DB_NAME=gerenciador_anuncios
+MYSQL_ROOT_PASSWORD=senha_root_forte_aqui
+DOMAIN=meudominio.com.br
+```
+
+`DOMAIN` aceita domínio ou IP:
+
+| Valor | HTTPS | Certificado |
+|---|---|---|
+| `meudominio.com.br` | Automático | Let's Encrypt (válido) |
+| `123.45.67.89` | Auto-assinado | Gerado pelo Caddy (navegador mostra aviso) |
 
 ```bash
 docker compose -f docker-compose.yaml -f docker-compose.prod.yaml --env-file .env.prod up --build -d
 ```
+
+## Parar os containers
+
+Sempre use o mesmo par de arquivos que usou para subir:
+
+```bash
+# Dev
+docker compose -f docker-compose.yaml -f docker-compose.dev.yaml --env-file .env.dev down
+
+# Staging
+docker compose -f docker-compose.yaml -f docker-compose.staging.yaml --env-file .env.staging down
+
+# Produção
+docker compose -f docker-compose.yaml -f docker-compose.prod.yaml --env-file .env.prod down
+```
+
+> `docker compose down` sozinho não funciona porque o `docker-compose.yaml` é apenas a base compartilhada e não tem `build` nem `image` definidos.
 
 ## Aplicar schema no banco
 
@@ -66,7 +100,10 @@ docker compose -f docker-compose.yaml -f docker-compose.prod.yaml --env-file .en
 | | Dev | Staging | Produção |
 |---|---|---|---|
 | Build target | `dev` | `production` | `production` |
-| Porta | 3000 | 3001 | 80 |
+| Portas expostas | 3000 | 3001 | 80 + 443 (Caddy) |
+| HTTPS | Não | Não | Sim (Let's Encrypt via Caddy) |
+| Proxy reverso | Não | Não | Caddy |
+| Gerenciador de processos | node --watch | node | PM2 (cluster, auto-restart) |
 | Volume de código | Sim | Não | Não |
 | MySQL exposto no host | Sim (3306) | Não | Não |
 | Restart policy | unless-stopped | always | always |

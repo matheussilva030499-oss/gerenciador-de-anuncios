@@ -29,15 +29,21 @@ FROM node:20-alpine AS production
 WORKDIR /app
 # Define a variável de ambiente NODE_ENV como production
 ENV NODE_ENV=production
+# Instala o PM2 globalmente dentro do container (gerenciador de processos)
+# PM2 reinicia a aplicação automaticamente se ela crashar
+RUN npm install -g pm2
 # Copia o node_modules do estágio "prod-deps" (só deps de produção)
 COPY --from=prod-deps /app/node_modules ./node_modules
 # Copia o package.json para o container
 COPY package.json ./
+# Copia o arquivo de configuração do PM2
+COPY ecosystem.config.cjs ./
 # Copia o código fonte da API
 COPY src ./src
 # Copia os arquivos do frontend estático
 COPY public ./public
 # Roda o processo como usuário "node" (não root, mais seguro)
 USER node
-# Comando padrão: inicia o servidor direto com Node.js
-CMD ["node", "src/index.js"]
+# Comando padrão: inicia a aplicação via PM2 (modo cluster, auto-restart)
+# --no-daemon mantém o PM2 em foreground (necessário para Docker)
+CMD ["pm2-runtime", "ecosystem.config.cjs"]
